@@ -5,6 +5,7 @@ use AuthorizeNetCIM;
 use AuthorizeNetCustomer;
 use AuthorizeNetPaymentProfile;
 use AuthorizeNetTransaction;
+use AuthorizeNetLineItem;
 
 class AuthorizeNet extends \lithium\core\Object {
 
@@ -110,7 +111,7 @@ class AuthorizeNet extends \lithium\core\Object {
 			$return->payment_profile = $response->getCustomerPaymentProfileIds();
 
 		} else {
-			
+			print_r($response); exit;
 			$return->status = 'failure';
 			$return->code = $response->getMessageCode();
 			$return->message = $response->getMessageText();
@@ -127,13 +128,72 @@ class AuthorizeNet extends \lithium\core\Object {
 
 	}
 
-	public function customerPayment($payment){
+	public function customerPaymentProfile($payment){
 		if(get_class($payment) == 'AuthorizeNetPaymentProfile'){
 			return $this->_customer->paymentProfiles[] = $payment;
 		} else {
 			return false;
 		}
 	}
+
+	/**
+	 * Build a transaction
+	 * @param  array  $data required fields: amount | profileId | paymentId. optional field: shippingId
+	 * @return object       AuthNet transaction object
+	 */
+	public function runTransaction($data = array()){
+
+		$this->_transaction->amount = $data['amount'];
+		$this->_transaction->customerProfileId = $data['profileId'];
+		$this->_transaction->customerPaymentProfileId = $data['paymentId'];
+
+		if(isset($data['shippingId'])){
+			$this->_transaction->customerShippingAddressId = $data['shippingId'];
+		}
+
+		// return $this->_transaction;
+
+		$_response = $this->_customerProfile->createCustomerProfileTransaction("AuthCapture", $this->_transaction);
+
+		$response = $_response->getTransactionResponse();
+
+		$return = new \stdClass();
+
+		if($response->error || $response->declined){
+			$return->status = 'failure';
+			$return->message = $response->response_reason_text;
+			$return->error = $response->error_message;
+		} else {
+			$return->status = 'success';
+			$return->transaction_id = $response->transaction_id;
+		}
+
+		return $return;
+
+	}
+
+	/**
+	 * Add a line item to a transaction
+	 * @param  array  $data line item details
+	 * @return object       AuthNet transaction object
+	 */
+	public function lineItem($data = array()){
+
+		$item = new AuthorizeNetLineItem;
+		$item->itemId      = $data['id'] ?: "1";
+		$item->name        = $data['name'];
+		$item->description = $data['description'];
+		$item->quantity    = $data['quantity'];
+		$item->unitPrice   = $data['price'];
+		$item->taxable     = $data['taxable'];
+
+		$this->_transaction->lineItems[] = $item;
+
+		return $this->_transaction;
+
+	}
+
+
 
 }
 
