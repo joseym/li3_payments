@@ -25,11 +25,11 @@ class AuthorizeNet extends \lithium\core\Object {
 	 * @var array
 	 */
 	public static $cards = array(
-		'dinersclub' 	=> '38000000000006',
 		'amex'			=> '370000000000002',
 		'disc'			=> '6011000000000012',
 		'visa1'			=> '4007000000027',
 		'visa2'			=> '4012888818888',
+		'dinersclub' 	=> '38000000000006',
 		'jcb'			=> '3088000000000017'
 	);
 
@@ -83,7 +83,9 @@ class AuthorizeNet extends \lithium\core\Object {
 	 * @param  array  $customer required options to pass to authnet
 	 * @return int           customer profile id
 	 */
-	public function customerProfile(array $customer = array()){
+	public function createCustomerProfile(array $customer = array(), $mode = null){
+
+		$mode = !$mode ? $this->_mode : $mode;
 
 		$defaults = array(
 			'description' => 'John Doe Payment Information',
@@ -100,7 +102,7 @@ class AuthorizeNet extends \lithium\core\Object {
 		$this->_customer->email = $customer['email'];
 		$this->_customer->merchantCustomerId = $customer['customerid'];
 
-		$response = $this->_customerProfile->createCustomerProfile($this->_customer, $this->_mode);
+		$response = $this->_customerProfile->createCustomerProfile($this->_customer, $mode);
 
 		$return = new \stdClass();
 
@@ -108,7 +110,9 @@ class AuthorizeNet extends \lithium\core\Object {
 
 			$return->status = 'success';
 			$return->profile_id = $response->getCustomerProfileId();
-			$return->payment_profile = $response->getCustomerPaymentProfileIds();
+			if(!empty($response->xml->customerPaymentProfileIdList)){
+				$return->payment_profile = $response->getCustomerPaymentProfileIds();
+			}
 
 		} else {
 			print_r($response); exit;
@@ -128,6 +132,19 @@ class AuthorizeNet extends \lithium\core\Object {
 
 	}
 
+	/**
+	 * returns a customer profile
+	 * @param  string  $profileId Customer Profile ID to return
+	 * @return int           customer profile id
+	 */
+	public function getCustomerProfile($profileId){
+		return $this->_customerProfile->getCustomerProfile($profileId);
+	}
+
+	public function customerProfile(){
+		return $this->_customerProfile;
+	}
+
 	public function customerPaymentProfile($payment){
 		if(get_class($payment) == 'AuthorizeNetPaymentProfile'){
 			return $this->_customer->paymentProfiles[] = $payment;
@@ -143,6 +160,10 @@ class AuthorizeNet extends \lithium\core\Object {
 	 */
 	public function runTransaction($data = array()){
 
+		$defaults = array( 'type' => 'AuthCapture' );
+
+		$data += $defaults;
+
 		$this->_transaction->amount = $data['amount'];
 		$this->_transaction->customerProfileId = $data['profileId'];
 		$this->_transaction->customerPaymentProfileId = $data['paymentId'];
@@ -151,9 +172,7 @@ class AuthorizeNet extends \lithium\core\Object {
 			$this->_transaction->customerShippingAddressId = $data['shippingId'];
 		}
 
-		// return $this->_transaction;
-
-		$_response = $this->_customerProfile->createCustomerProfileTransaction("AuthCapture", $this->_transaction);
+		$_response = $this->_customerProfile->createCustomerProfileTransaction($data['type'], $this->_transaction);
 
 		$response = $_response->getTransactionResponse();
 
@@ -163,6 +182,9 @@ class AuthorizeNet extends \lithium\core\Object {
 			$return->status = 'failure';
 			$return->message = $response->response_reason_text;
 			$return->error = $response->error_message;
+			$return->full = new \stdClass();
+			$return->full->transaction = $this->_transaction;
+			$return->full->response = $response;
 		} else {
 			$return->status = 'success';
 			$return->transaction_id = $response->transaction_id;
