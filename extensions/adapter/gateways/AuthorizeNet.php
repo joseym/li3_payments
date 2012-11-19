@@ -74,6 +74,10 @@ class AuthorizeNet extends \lithium\core\Object {
 		$this->_payment->payment->creditCard->cardNumber = $payment['cardNumber'];
 		$this->_payment->payment->creditCard->expirationDate = $payment['expiration'];
 
+		if(isset($payment['billing'])){
+			$this->_payment->billTo = $payment['billing'];
+		}
+
 		return $this->_payment;
 
 	}
