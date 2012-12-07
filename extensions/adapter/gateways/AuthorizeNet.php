@@ -17,6 +17,7 @@ class AuthorizeNet extends \lithium\core\Object {
 	protected $_customerProfile;
 	protected $_transaction;
 	protected $_mode; // "none", "testMode", "liveMode"
+	protected $_isSandbox = true;
 
 	protected $_autoConfig = array('login', 'key');
 
@@ -34,11 +35,13 @@ class AuthorizeNet extends \lithium\core\Object {
 	);
 
 	public function __construct(array $config = array()) {
+		if(isset($config['sandbox'])) $this->_isSandbox = $config['sandbox'];
 		$this->_mode = isset($config['validation_mode']) ? $config['validation_mode'] : 'none';
 		$this->_customer = new AuthorizeNetCustomer();
 		$this->_payment = new AuthorizeNetPaymentProfile();
 		$this->_customerProfile = new AuthorizeNetCIM($config['login'], $config['key']);
 		$this->_transaction = new AuthorizeNetTransaction;
+		$this->_customerProfile->setSandbox($this->_isSandbox);
 		return parent::__construct($config);
 	}
 
