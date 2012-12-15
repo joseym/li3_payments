@@ -122,7 +122,7 @@ class AuthorizeNet extends \lithium\core\Object {
 			}
 
 		} else {
-			print_r($response); exit;
+
 			$return->status = 'failure';
 			$return->code = $response->getMessageCode();
 			$return->message = $response->getMessageText();
