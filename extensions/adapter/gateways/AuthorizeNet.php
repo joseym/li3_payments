@@ -170,30 +170,46 @@ class AuthorizeNet extends \lithium\core\Object {
 		$defaults = array( 'type' => 'AuthCapture' );
 
 		$data += $defaults;
+		$trans = $this->_transaction;
 
-		$this->_transaction->amount = $data['amount'];
-		$this->_transaction->customerProfileId = $data['profileId'];
-		$this->_transaction->customerPaymentProfileId = $data['paymentId'];
-
-		if(isset($data['shippingId'])){
-			$this->_transaction->customerShippingAddressId = $data['shippingId'];
+		if($data['type'] == 'Refund' || $data['type'] == 'Void') $trans->transId = $data['transId'];
+		if($data['type'] != 'Void') {
+			$trans->amount = $data['amount'];
+			$trans->customerProfileId = $data['profileId'];
+			$trans->customerPaymentProfileId = $data['paymentId'];
+			if(isset($data['shippingId'])){
+				$trans->customerShippingAddressId = $data['shippingId'];
+			}
+		} else {
+			$trans = new AuthorizeNetTransaction;
+			$trans->transId = $data['transId'];
 		}
 
-		$_response = $this->_customerProfile->createCustomerProfileTransaction($data['type'], $this->_transaction);
+		$_response = $this->_customerProfile->createCustomerProfileTransaction($data['type'], $trans);
 
 		$response = $_response->getTransactionResponse();
 
 		$return = new \stdClass();
 
 		if($response->error || $response->declined){
-			$return->status = 'failure';
-			$return->message = $response->response_reason_text;
-			$return->error = $response->error_message;
-			$return->full = new \stdClass();
-			$return->full->transaction = $this->_transaction;
-			$return->full->response = $response;
+			if($data['type'] == 'Refund') {
+				$newData = array(
+					'type' => 'Void',
+					'transId' => $data['transId']
+				);
+				return $this->runTransaction($newData);
+			} else {
+				$return->status = 'failure';
+				$return->message = $response->response_reason_text;
+				$return->error = $response->error_message;
+				$return->type = $data['type'];
+				$return->full = new \stdClass();
+				$return->full->transaction = $trans;
+				$return->full->response = $response;
+			}
 		} else {
 			$return->status = 'success';
+			$return->type = $data['type'];
 			$return->transaction_id = $response->transaction_id;
 		}
 
